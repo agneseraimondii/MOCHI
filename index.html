@@ -334,6 +334,136 @@
       canvas.pet-canvas { animation: float 3s ease-in-out infinite; }
       @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     }
+
+    /* ── AMBIENT FIREBASE CHAT ─────────────────────────────────────────────────── */
+.ambient-chat {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  width: 310px;
+  max-height: 390px;
+  background: var(--cream);
+  border: 3px solid var(--text);
+  border-radius: 6px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 6px 6px 0 rgba(58, 42, 74, 0.25);
+  font-family: 'Press Start 2P', monospace;
+}
+
+.ambient-chat.collapsed {
+  width: auto;
+  height: auto;
+}
+
+.ambient-chat.collapsed .ambient-chat-body,
+.ambient-chat.collapsed .ambient-chat-form {
+  display: none;
+}
+
+.ambient-chat-header {
+  background: var(--pink-light);
+  border-bottom: 2px solid var(--pink);
+  color: var(--pink-dark);
+  padding: 9px 10px;
+  font-size: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.6;
+}
+
+.ambient-chat-toggle {
+  background: white;
+  border: 1.5px solid var(--pink-dark);
+  color: var(--pink-dark);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.ambient-chat-body {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 170px;
+  max-height: 260px;
+}
+
+.ambient-chat-message {
+  background: white;
+  border: 1.5px solid var(--lavender);
+  color: var(--text);
+  padding: 8px;
+  font-size: 6px;
+  line-height: 1.9;
+  word-break: break-word;
+}
+
+.ambient-chat-time {
+  display: block;
+  color: var(--text-soft);
+  font-size: 4px;
+  margin-top: 5px;
+  line-height: 1.5;
+}
+
+.ambient-chat-form {
+  border-top: 2px solid var(--pink);
+  padding: 8px;
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 248, 232, 0.95);
+}
+
+.ambient-chat-input {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 6px;
+  padding: 8px;
+  border: 1.5px solid var(--pink);
+  color: var(--text);
+  background: white;
+  outline: none;
+}
+
+.ambient-chat-send {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 5px;
+  padding: 8px;
+  border: 1.5px solid var(--pink-dark);
+  background: var(--pink);
+  color: white;
+  cursor: pointer;
+}
+
+.ambient-chat-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .ambient-chat {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: 330px;
+  }
+
+  .ambient-chat-body {
+    max-height: 200px;
+  }
+}
+
   </style>
 </head>
 <body>
@@ -357,6 +487,32 @@
 </div>
 
 <div class="event-toast" id="eventToast"></div>
+
+<!-- Ambient Firebase Chat -->
+<div class="ambient-chat collapsed" id="ambientChat">
+  <div class="ambient-chat-header">
+    <span>ambient chat</span>
+    <button class="ambient-chat-toggle" id="ambientChatToggle" type="button">+</button>
+  </div>
+
+  <div class="ambient-chat-body" id="ambientChatMessages">
+    <div class="ambient-chat-message">loading chat...</div>
+  </div>
+
+  <form class="ambient-chat-form" id="ambientChatForm">
+    <input
+      class="ambient-chat-input"
+      id="ambientChatInput"
+      type="text"
+      maxlength="300"
+      placeholder="leave a message..."
+      autocomplete="off"
+    />
+    <button class="ambient-chat-send" id="ambientChatSend" type="submit" disabled>
+      send
+    </button>
+  </form>
+</div>
 
 <!-- Bot Modal -->
 <div class="modal-overlay" id="botModal">
@@ -1653,7 +1809,108 @@ init();
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  console.log("Firebase connected:", db);
+  const chat = document.getElementById("ambientChat");
+  const toggle = document.getElementById("ambientChatToggle");
+  const messagesEl = document.getElementById("ambientChatMessages");
+  const form = document.getElementById("ambientChatForm");
+  const input = document.getElementById("ambientChatInput");
+  const sendButton = document.getElementById("ambientChatSend");
+
+  let isChatReady = false;
+  let hasLoadedFirstMessage = false;
+
+  toggle.addEventListener("click", () => {
+    chat.classList.toggle("collapsed");
+    toggle.textContent = chat.classList.contains("collapsed") ? "+" : "−";
+  });
+
+  signInAnonymously(auth).catch((error) => {
+    console.error("Anonymous sign-in failed:", error);
+    messagesEl.innerHTML = `
+      <div class="ambient-chat-message">
+        chat unavailable. anonymous auth failed.
+      </div>
+    `;
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) return;
+    isChatReady = true;
+    sendButton.disabled = false;
+  });
+
+  const messagesRef = ref(db, "messages");
+  const recentMessagesQuery = query(messagesRef, limitToLast(40));
+
+  onChildAdded(recentMessagesQuery, (snapshot) => {
+    const message = snapshot.val();
+
+    if (!hasLoadedFirstMessage) {
+      messagesEl.innerHTML = "";
+      hasLoadedFirstMessage = true;
+    }
+
+    renderAmbientMessage(message);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!isChatReady) return;
+
+    const text = input.value.trim();
+
+    if (!text) return;
+    if (text.length > 300) return;
+
+    input.value = "";
+    sendButton.disabled = true;
+
+    try {
+      const newMessageRef = push(messagesRef);
+
+      await set(newMessageRef, {
+        text,
+        createdAt: Date.now()
+      });
+    } catch (error) {
+      console.error("Message send failed:", error);
+      alert("Message could not be sent.");
+    } finally {
+      sendButton.disabled = false;
+      input.focus();
+    }
+  });
+
+  function renderAmbientMessage(message) {
+    if (!message || typeof message.text !== "string") return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "ambient-chat-message";
+
+    const text = document.createElement("span");
+    text.textContent = message.text;
+
+    const time = document.createElement("span");
+    time.className = "ambient-chat-time";
+
+    if (typeof message.createdAt === "number") {
+      const date = new Date(message.createdAt);
+      time.textContent = date.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    wrapper.appendChild(text);
+    wrapper.appendChild(time);
+    messagesEl.appendChild(wrapper);
+
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+</script>
 </script>
 
 </body>
