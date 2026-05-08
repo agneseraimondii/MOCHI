@@ -30,16 +30,17 @@
       --rust: #a06840;
     }
 
-    html, body {
-      height: 100%;
-      background: var(--cream);
-      color: var(--text);
-      font-family: 'Press Start 2P', monospace;
-      overflow: hidden;
-    }
+html, body {
+  min-height: 100%;
+  background: var(--cream);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 
     .app {
-      display: flex; flex-direction: column; height: 100vh;
+      display: flex; flex-direction: column; min-height: 100dvh;
       background: linear-gradient(135deg, var(--cream) 0%, var(--pink-light) 100%);
     }
 
@@ -104,6 +105,26 @@
     .inventory-empty { grid-column: 1/-1; font-size: 6px; color: var(--text-soft); text-align: center; line-height: 2.5; padding: 18px 0; }
 
     /* ── CHARACTER CREATION ── */
+
+  .intro-note {
+  background: white;
+  border: 2px solid var(--pink);
+  border-radius: 6px;
+  padding: 12px;
+  max-width: 340px;
+  text-align: center;
+  font-size: 6px;
+  line-height: 2;
+  color: var(--text);
+}
+
+.intro-note-soft {
+  color: var(--text-soft);
+  font-style: italic;
+  display: block;
+  margin-top: 7px;
+}
+
     .creation-screen {
       display: flex; flex-direction: column; align-items: center; gap: 20px; padding-bottom: 24px;
     }
@@ -463,6 +484,30 @@
     max-height: 200px;
   }
 }
+@media (max-width: 600px) {
+  .main {
+    padding: 10px;
+  }
+
+  .creation-screen {
+    gap: 14px;
+    padding-bottom: 90px;
+  }
+
+  .pet-container {
+    padding: 10px;
+  }
+
+  .hub-screen {
+    gap: 10px;
+    padding-bottom: 90px;
+  }
+
+  .env-content {
+    gap: 9px;
+    padding-bottom: 90px;
+  }
+}
 
   </style>
 </head>
@@ -491,7 +536,7 @@
 <!-- Ambient Firebase Chat -->
 <div class="ambient-chat collapsed" id="ambientChat">
   <div class="ambient-chat-header">
-    <span>ambient chat</span>
+    <span>kindness for the next person</span>
     <button class="ambient-chat-toggle" id="ambientChatToggle" type="button">+</button>
   </div>
 
@@ -505,7 +550,7 @@
       id="ambientChatInput"
       type="text"
       maxlength="300"
-      placeholder="leave a message..."
+      placeholder="leave a kind message..."
       autocomplete="off"
     />
     <button class="ambient-chat-send" id="ambientChatSend" type="submit" disabled>
@@ -881,6 +926,12 @@ const STAT_COLORS = {
   connection: '#d06890',
   self:       '#50b0a8'
 };
+const STAT_LABELS = {
+  calm: 'vibe',
+  energy: 'social battery',
+  connection: 'friendship',
+  self: 'self-love'
+};
 
 // ─── PENALTIES ────────────────────────────────────────────────────────────────
 const PENALTIES = {
@@ -1233,9 +1284,18 @@ const EMOTIONS = {
 };
 
 const CHECKIN_QUESTIONS = [
-  { q:'how are you feeling today?',    opts:['calm & grounded','floaty & dreamy','tender & open','buzzy & restless','heavy & tired','soft & gentle','scattered & lost','warm & connected'] },
-  { q:'what does your energy feel like?', opts:['energized','calm','tired','restless','floating','overwhelmed','warm & cosy','just okay'] },
-  { q:"how's your heart today?",       opts:['open','guarded','tired','excited','tender','numb','connected','reflective'] }
+  { 
+    q:'before mochi wakes up, how are you arriving today?',    
+    opts:['calm & grounded','floaty & dreamy','tender & open','buzzy & restless','heavy & tired','soft & gentle','scattered & lost','warm & connected'] 
+  },
+  { 
+    q:'what should mochi help you notice right now?', 
+    opts:['energized','calm','tired','restless','floating','overwhelmed','warm & cosy','just okay'] 
+  },
+  { 
+    q:"if mochi felt what you feel, what would their heart be like?",       
+    opts:['open','guarded','tired','excited','tender','numb','connected','reflective'] 
+  }
 ];
 
 const STATE_KEYS = {
@@ -1306,6 +1366,12 @@ function showCreation() {
     <div class="creation-screen">
       <div class="creation-title">◆ create your mochi ◆</div>
       <div class="creation-subtitle">a small shape in the world. what kind?</div>
+      <div class="intro-note">
+  mochi is a tiny pet, but also a soft mirror.
+  <span class="intro-note-soft">
+    caring for mochi is a gentle way to notice yourself.
+  </span>
+</div>
 
       <div class="creation-section">
         <div class="creation-label">01 · your name</div>
@@ -1440,7 +1506,7 @@ function endDay() {
   saveGame();
   const evo = getEvolutionPhase();
   document.getElementById('botResponse').textContent =
-    `the day closes softly. mochi kept the small good things. ${evo.emoji} ${evo.name} — ${evo.tagline}`;
+  `the day closes softly. you cared for mochi, and maybe practiced caring for yourself. ${evo.emoji} ${evo.name} — ${evo.tagline}`;
   document.getElementById('botModalButtons').innerHTML =
     `<button class="modal-btn" onclick="closeBotModal(); showCheckin();">new day ✦</button>`;
   document.getElementById('botModal').classList.add('active');
@@ -1531,11 +1597,14 @@ function showHub() {
         <div class="stats-grid">
           ${['calm','energy','connection','self'].map(k => `
             <div class="stat">
-              <span class="stat-label">${k}</span>
+             <span class="stat-label">${STAT_LABELS[k]}</span>
               <span class="stat-value">${Math.round(s[k])}%</span>
               <div class="stat-bar"><div class="stat-bar-fill" style="width:${Math.round(s[k])}%;background:${STAT_COLORS[k]}"></div></div>
             </div>`).join('')}
         </div>
+        <div class="cycle-note">
+these are not scores. they are small signals of mochi’s vibe, social battery, friendship, and self-love.
+</div>
         <div class="moon-wisdom">${renderIcon(moon.iconKey)} ${moon.wisdom}</div>
         ${showCycle ? `<div class="cycle-note">${cl}<div class="cycle-disclaimer">body notes are general, optional, and not medical advice.</div></div>` : ''}
       </div>
@@ -1639,7 +1708,7 @@ function showEnv(envKey) {
             <div class="env-mini-emotion">${em.name}</div>
             ${['calm','energy','connection','self'].map(k => `
               <div class="env-mini-row">
-                <span class="env-mini-lbl">${k}</span>
+               <span class="env-mini-lbl">${STAT_LABELS[k]}</span>
                 <div class="env-mini-bar"><div class="env-mini-fill" style="width:${Math.round(s[k])}%;background:${STAT_COLORS[k]}"></div></div>
                 <span class="env-mini-val">${Math.round(s[k])}%</span>
               </div>`).join('')}
@@ -1662,6 +1731,15 @@ function showEnv(envKey) {
   drawBunny(document.getElementById('envCanvas'), gameState.emotion);
   updateHeader();
 }
+const CARE_REFLECTIONS = [
+  'mochi needed that. maybe a small part of you did too.',
+  'you cared for mochi from the outside. something inside noticed.',
+  'that was not just an action. it was a tiny rehearsal for care.',
+  'mochi softened a little. maybe you can too.',
+  'sometimes it is easier to be kind in third person.',
+  'the care landed somewhere small and real.',
+  'mochi received it. let the gesture count for you too.'
+];
 
 // ─── ACTIONS ──────────────────────────────────────────────────────────────────
 function pickRandom(arr, lastIdx) {
@@ -1690,10 +1768,16 @@ function doAction(envKey, actionIndex) {
     gameState.emotion = ems[Math.floor(Math.random() * ems.length)];
   }
 
-  advanceTime();
-  saveGame();
+advanceTime();
 
-  if (checkPenalties(envKey)) return;
+if (Math.random() < 0.55) {
+  const reflection = CARE_REFLECTIONS[Math.floor(Math.random() * CARE_REFLECTIONS.length)];
+  setTimeout(() => showEventToast(reflection), 900);
+}
+
+saveGame();
+
+if (checkPenalties(envKey)) return;
 
   // ── Primary event: 72% global OR env-specific ──────────────────────────────
   if (Math.random() < 0.72) {
@@ -1913,4 +1997,4 @@ init();
 </script>
 
 </body>
-</html>
+</html>  
